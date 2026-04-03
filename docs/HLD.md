@@ -35,12 +35,12 @@ Cisco NSO          → Enterprise grade but expensive
                      Vendor specific
                      Not open source
 
-Netmiko + Scripts  → What most engineers use today
+Netmiko Scripts    → What most engineers use today
                      Manual, not scalable
                      No failure handling
 
-Nothing in open    → Handles millions of devices
-source today         Multi vendor
+Open Source Gap    → Nothing handles millions of devices
+                     Multi vendor
                      Intelligent failure handling
                      Built in security
                      Real time observability
@@ -56,12 +56,9 @@ NetFleet is a distributed network automation platform
 built on a five component pipeline. It supports three
 deployment profiles to match any scale requirement.
 ```
-Deployment Profiles:
-
 Standalone   → Docker Compose, Redis queues
                Cron based discovery
                Up to 100K devices
-               Single instance per component
 
 Distributed  → Kubernetes, Kafka event bus
                Event driven discovery
@@ -74,12 +71,6 @@ Enterprise   → Kubernetes cluster
                10M+ devices
 ```
 
-### Users
-- Network Operations — schedule and monitor jobs
-- Network Architects — configure segments and protocols
-- Security Teams — credential lifecycle management
-- DevOps Teams — observability and alerting
-
 ---
 
 ## Architecture
@@ -87,38 +78,38 @@ Enterprise   → Kubernetes cluster
 ### Core Pipeline
 ```mermaid
 graph TB
-    subgraph Input Sources
-        PDB[(Primary DB\nHigher Segments)]
-        SF[Secondary Files\nRegion Basis]
-        NC[Network Controller\nEvent Driven]
+    subgraph InputSources
+        PDB[(Primary DB)]
+        SF[Secondary Files]
+        NC[Network Controller]
     end
 
-    subgraph NetFleet Pipeline
+    subgraph Pipeline
         D[Component 1\nDevice Discovery]
         S[Component 2\nJob Scheduler]
         I[Component 3\nInterim Orchestrator]
-        P[Component 4a\nPreprocessor Pool\nThreadPool]
-        PP[Component 4b\nPostprocessor Pool\nTextFSM]
-        M[Component 5\nMongoDB Insert\nAggregator]
+        P[Component 4a\nPreprocessor Pool]
+        PP[Component 4b\nPostprocessor Pool]
+        M[Component 5\nMongoDB Insert]
     end
 
-    subgraph Transport Layer — pluggable
-        RQ[Redis Queues\nStandalone Mode]
-        KQ[Kafka Topics\nDistributed Mode]
+    subgraph TransportLayer
+        RQ[Redis Queues\nStandalone]
+        KQ[Kafka Topics\nDistributed]
     end
 
     subgraph Storage
         DB[(MongoDB)]
-        RC[(Redis Cache\nJob Progress)]
+        RC[(Redis Cache)]
     end
 
-    subgraph Devices
-        C[Cisco IOS\nTier1 Tier2 Tier3]
-        H[Huawei VRP\nTier1 Tier2 Tier3]
-        J[Juniper JunOS\nISP Core]
-        B[BDCOM\nEdge Field]
-        Z[ZTE ZXROS\nEdge Field]
-        U[UTStarcom\nEdge Field]
+    subgraph NetworkDevices
+        C[Cisco IOS]
+        H[Huawei VRP]
+        J[Juniper JunOS]
+        B[BDCOM]
+        Z[ZTE ZXROS]
+        U[UTStarcom]
     end
 
     PDB --> D
@@ -126,8 +117,8 @@ graph TB
     NC --> D
     D --> DB
     S --> I
-    I --> Transport Layer — pluggable
-    Transport Layer — pluggable --> P
+    I --> TransportLayer
+    TransportLayer --> P
     P --> C
     P --> H
     P --> J
@@ -140,10 +131,10 @@ graph TB
     B --> P
     Z --> P
     U --> P
-    P --> Transport Layer — pluggable
-    Transport Layer — pluggable --> PP
-    PP --> Transport Layer — pluggable
-    Transport Layer — pluggable --> M
+    P --> TransportLayer
+    TransportLayer --> PP
+    PP --> TransportLayer
+    TransportLayer --> M
     M --> DB
     M --> RC
     RC --> S
@@ -154,15 +145,15 @@ graph TB
 ### Hybrid Transport Architecture
 ```mermaid
 graph LR
-    subgraph Standalone Profile
+    subgraph StandaloneMode
         R[Redis Lists\nDocker Compose\nUp to 100K devices]
     end
 
-    subgraph Distributed Profile
+    subgraph DistributedMode
         K[Kafka Topics\nKubernetes\n100K to 10M devices]
     end
 
-    subgraph Business Logic — unchanged
+    subgraph BusinessLogic
         BL[All Components\nSame code\nDifferent transport]
     end
 
@@ -188,19 +179,17 @@ graph TB
 
     subgraph Distributed
         K8S[Kubernetes]
-        KF[Kafka Cluster]
-        MD[MongoDB]
-        HPA[HPA Auto Scaling]
+        KF[Kafka]
+        HPA[Auto Scaling]
         ED[Event Discovery]
     end
 
     subgraph Enterprise
-        K8SE[Kubernetes]
+        K8SE[Kubernetes Cluster]
         KFC[Kafka Cluster]
         MDC[MongoDB Cluster]
         RDC[Redis Cluster]
         MT[Multi Tenant]
-        OB[Full Observability]
     end
 ```
 
@@ -225,7 +214,7 @@ graph TB
 Maintains live fleet inventory across all segments
 and regions.
 
-**Two modes — pluggable:**
+**Two modes:**
 ```
 Cron Mode — Standalone:
     Runs daily in idle hours
@@ -236,10 +225,9 @@ Cron Mode — Standalone:
 
 Event Driven Mode — Distributed:
     Listens to network controller events
-    Device joins → discovered immediately
-    Device leaves → marked inactive immediately
+    Device joins network — discovered immediately
+    Device leaves network — marked inactive
     Real time fleet accuracy
-    No stale data
 ```
 
 **Region basis delta validation:**
@@ -265,7 +253,6 @@ Validate all regions
     → Truncate
     → Bulk insert new data
     → Verify counts
-    → Done
     → Rollback to backup if insert fails
 ```
 
@@ -274,7 +261,7 @@ Validate all regions
 ### Component 2 — Job Scheduler
 
 Monitors all configured jobs and triggers based
-on cron schedules. Owns job lifecycle.
+on cron schedules. Owns the job lifecycle.
 
 **Job lifecycle:**
 ```
@@ -292,27 +279,27 @@ During execution:
     MongoDB Insert reports inserted_records
     via Redis cache
 
-Completion check:
+Completion:
     if inserted_records >= total_records:
         mark job COMPLETE
 ```
 
 **Timeout safety net:**
 
-If job does not complete within timeout window —
-mark FAILED. Prevents zombie jobs.
+If job does not complete within timeout window
+mark FAILED. Prevents zombie jobs running forever.
 
 ---
 
 ### Component 3 — Interim Orchestrator
 
-Resolves devices for given segment and distributes
-to priority queues via transport layer.
+Resolves devices for given segment from Discovery DB
+and distributes to priority queues via transport.
 
 **Priority isolation:**
 ```
-Tier1, Tier2, Tier3 → HIGH priority topic/queue
-Edge, Field         → STANDARD priority topic/queue
+Tier1, Tier2, Tier3 → HIGH priority queue
+Edge, Field         → STANDARD priority queue
 ```
 
 Critical operations never blocked by high volume
@@ -330,17 +317,15 @@ Performance heart of the system.
 Network devices have unpredictable latency:
     Fast device   → 200ms response
     Slow device   → 30000ms response
-    Overloaded    → timeout
 
 AsyncIO event loop:
     One slow device blocks entire loop
-    Cascading failures across hundreds of ops
+    Cascading failures
 
 ThreadPool:
     Each device gets its own thread
     Slow device only blocks itself
-    Other threads continue independently
-    Predictable, isolated, battle tested
+    Predictable and isolated
 ```
 
 **Plugin based vendor support:**
@@ -349,14 +334,8 @@ handler = PluginRegistry.get_handler(
     vendor=device.vendor,
     protocol=device.protocol
 )
-handler.connect(device)
 result = handler.execute(operation)
 ```
-
-Supports: Cisco IOS, Huawei VRP, Juniper JunOS,
-BDCOM, ZTE ZXROS, UTStarcom.
-
-Community can add any vendor via plugin interface.
 
 **Error threshold circuit breaker:**
 ```
@@ -367,9 +346,9 @@ connection_errors >= ERROR_THRESHOLD:
 
 **Retry logic:**
 ```
-Timeout      → retry — transient issue
-Auth failure → retry — timing issue
-Unreachable  → no retry — device is down
+Timeout      → retry once
+Auth failure → retry once
+Unreachable  → no retry
 ```
 
 ---
@@ -380,17 +359,17 @@ Normalizes raw device output using TextFSM templates.
 
 **Why TextFSM:**
 ```
-Same command, different vendor output:
+Same command — different vendor output:
 
-Cisco show interfaces:
+Cisco:
     GigabitEthernet0/0 is up, line protocol is up
-    Hardware is iGbE, address is aabb.ccdd.eeff
+    Hardware address is aabb.ccdd.eeff
 
-Huawei display interface:
+Huawei:
     GigabitEthernet0/0/0 current state: UP
     Hardware address is AABB-CCDD-EEFF
 
-TextFSM template converts both to:
+TextFSM normalizes both to:
     {
         "interface": "GigabitEthernet0/0",
         "status": "up",
@@ -398,24 +377,23 @@ TextFSM template converts both to:
     }
 ```
 
-Template library covers all supported vendors
-and common operations. Community can contribute
-templates for any vendor.
+Template library covers all supported vendors.
+Community can contribute templates for any vendor.
 
 ---
 
 ### Component 5 — MongoDB Insert
 
 Independent microservice for bulk database writes.
-Originally part of Postprocessor — separated for
-independent scaling and clean failure isolation.
+Separated from Postprocessor for independent
+scaling and clean failure isolation.
 
-**Aggregator pattern:**
+**Aggregator pattern with Redis cache:**
 ```
-Records arrive in batches — not all at once
+Records arrive in batches
 
 Cache per job:
-    cache[execution_id] = {
+    {
         total_records: N,
         inserted_records: 0,
         last_updated: timestamp
@@ -423,21 +401,19 @@ Cache per job:
 
 Each batch:
     inserted_records += batch_size
-    update cache
     if inserted >= total:
         signal Scheduler COMPLETE
 
 Cache timeout:
     No new records within window
     Signal Scheduler FAILED
-    Silent upstream failure detected
 ```
 
 ---
 
 ## Plugin Architecture
 
-Any vendor can be supported by implementing
+Anyone can add vendor support by implementing
 the base plugin interface:
 ```python
 class BaseVendorPlugin:
@@ -452,20 +428,20 @@ class BaseVendorPlugin:
     def disconnect(self): pass
     def health_check(self) -> bool: pass
 
-# Register plugin
+# Register
 PluginRegistry.register(CiscoIOSPlugin)
 ```
 
-**Currently supported vendors:**
+**Supported vendors:**
 
-| Vendor | Segment | Protocols | Operations |
-|---|---|---|---|
-| Cisco IOS | Tier1, Tier2, Tier3 | SSH, SNMP | Stats, Config |
-| Huawei VRP | Tier1, Tier2, Tier3 | SSH, SNMP, Telnet | Stats, Config |
-| Juniper JunOS | Tier1, Tier3 | SSH, SNMP | Stats, Config |
-| BDCOM | Edge, Field | Telnet, SSH | Stats, OLT ops |
-| ZTE ZXROS | Edge, Field | Telnet, SSH | Stats, GPON ops |
-| UTStarcom | Edge, Field | Telnet, SSH | Stats, DSL ops |
+| Vendor | Segments | Protocols |
+|---|---|---|
+| Cisco IOS | Tier1, Tier2, Tier3 | SSH, SNMP |
+| Huawei VRP | Tier1, Tier2, Tier3 | SSH, SNMP, Telnet |
+| Juniper JunOS | Tier1, Tier3 | SSH, SNMP |
+| BDCOM | Edge, Field | Telnet, SSH |
+| ZTE ZXROS | Edge, Field | Telnet, SSH |
+| UTStarcom | Edge, Field | Telnet, SSH |
 
 ---
 
@@ -477,7 +453,7 @@ PluginRegistry.register(CiscoIOSPlugin)
 2.  Scheduler calls Interim with job details
 3.  Interim queries Discovery DB for segment devices
 4.  Interim publishes device records to transport
-5.  Scheduler marks job RUNNING, stores total_records
+5.  Scheduler marks job RUNNING stores total_records
 6.  Preprocessor workers consume from transport
 7.  Plugin handler connects to device
 8.  Raw output published to transport
@@ -486,32 +462,33 @@ PluginRegistry.register(CiscoIOSPlugin)
 11. Normalized records published to transport
 12. MongoDB Insert consumes normalized records
 13. Bulk insert to MongoDB
-14. Cache updated with inserted_count
-15. Scheduler detects inserted == total → COMPLETE
+14. Cache updated with inserted count
+15. Scheduler detects inserted equals total
+16. Job marked COMPLETE
 ```
 
 ### Failure Paths
 ```
 Device unreachable:
-    Skip, no retry, continue to next device
+    Skip, no retry, continue
 
 Device timeout or auth failure:
     Retry once, then skip
 
 Component error threshold reached:
-    Component → FAILED
+    Component FAILED
     Signal Scheduler
-    Scheduler → job FAILED
+    Job FAILED
     Alert raised
 
 Instance crash:
-    Thread pool records lost — max 150 per instance
+    Thread pool records lost
     Other instances absorb remaining work
-    Acceptable loss for stats collection
 
-Cache timeout — silent upstream failure:
-    MongoDB Insert detects no new records
-    Signals Scheduler → job FAILED
+Cache timeout:
+    MongoDB Insert detects silence
+    Signals Scheduler
+    Job FAILED
 ```
 
 ---
@@ -520,38 +497,36 @@ Cache timeout — silent upstream failure:
 
 ### 1. Pluggable Transport Layer
 Single environment variable switches between Redis
-and Kafka. Business logic never changes. Deploy at
-any scale without code changes.
+and Kafka. Business logic never changes. Same code
+deploys at any scale.
 
 ### 2. ThreadPool over AsyncIO
-Network device latency is unpredictable and highly
-variable. AsyncIO event loop blocked by one slow
-device cascades failures. ThreadPool isolates each
-connection completely.
+Network device latency is unpredictable. AsyncIO
+blocked by one slow device cascades failures.
+ThreadPool isolates each connection completely.
 
 ### 3. Plugin Based Vendor Support
-Hardcoded vendor support limits community adoption.
-Plugin interface lets anyone add any vendor.
-Community grows the platform.
+Hardcoded vendor support limits adoption. Plugin
+interface lets anyone add any vendor. Community
+grows the platform organically.
 
 ### 4. Region Basis Delta Validation
 Global threshold misses partial file failures.
 Region basis catches cases where one region fails
-while others succeed. Prevents silent data loss.
+while others succeed.
 
 ### 5. MongoDB as Independent Microservice
 Separated from Postprocessor for independent
-scaling, clean failure isolation and single
-responsibility per component.
+scaling and single responsibility per component.
 
 ### 6. Blue Green Discovery Refresh
-Atomic all-or-nothing refresh. No partial state
-windows. Instant rollback on failure.
+Atomic all-or-nothing refresh. No partial state.
+Instant rollback on failure.
 
 ### 7. TextFSM Template Library
-Vendor output normalization is solved once in
-templates. New vendor support requires only
-new templates and a plugin — not code changes.
+Vendor normalization solved once in templates.
+New vendor requires only new templates and plugin.
+No code changes needed.
 
 ---
 
@@ -559,13 +534,13 @@ new templates and a plugin — not code changes.
 
 | Scenario | Detection | Response |
 |---|---|---|
-| Device unreachable | Connection error | Skip, no retry |
+| Device unreachable | Connection error | Skip no retry |
 | Device timeout | Socket timeout | Retry once |
 | Auth failure | Auth exception | Retry once |
 | Error threshold | Error counter | Component FAILED |
 | Instance crash | Thread pool lost | Others continue |
 | Cache timeout | No new records | Job FAILED |
-| Discovery delta invalid | Region mismatch | Abort, keep existing |
+| Discovery delta invalid | Region mismatch | Abort keep existing |
 | Transport failure | Connection error | Circuit breaker |
 
 ---
@@ -584,7 +559,7 @@ netfleet_transport_consume_total
 ```
 
 Pre-built Grafana dashboard included in
-`metrics/grafana/netfleet_dashboard.json`.
+`metrics/grafana/netfleet_dashboard.json`
 
 ---
 
@@ -606,8 +581,8 @@ Pre-built Grafana dashboard included in
 | API | FastAPI | Async, Pydantic, auto Swagger |
 | Concurrency | ThreadPool | Device latency variance |
 | Normalization | TextFSM | Industry standard |
-| Protocols | Netmiko | Battle tested network I/O |
-| Monitoring | Prometheus + Grafana | Industry standard |
+| Protocols | Netmiko | Battle tested network IO |
+| Monitoring | Prometheus and Grafana | Industry standard |
 
 ---
 
