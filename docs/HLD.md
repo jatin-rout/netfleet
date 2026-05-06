@@ -255,42 +255,83 @@ and regions.
 ```
 Cron Mode — Standalone:
     Runs daily in idle hours
-    Queries primary DB for higher segments
-    Reads secondary files for lower segments
-    Region basis delta validation
-    Blue green refresh pattern
+    Queries primary DB for higher segments (Tier1/2/3)
+    Reads secondary files for lower segments (Edge/Field)
+    Per-(region, segment) delta validation
+    Blue green refresh — atomic per city
 
 Event Driven Mode — Distributed:
-    Listens to network controller events
-    Device joins network — discovered immediately
-    Device leaves network — marked inactive
-    Real time fleet accuracy
+    Listens to network controller events via Kafka
+    Device joins network — upsert as ACTIVE immediately
+    Device leaves network — marked INACTIVE
+    IP change events — ip_address updated in place
+    Real time fleet accuracy with no bulk refresh
+```
+
+**Manual trigger:**
+```
+API: POST /api/v1/discovery/sync
+    → pushes to queue_discovery_trigger (Redis)
+    → discovery component trigger listener picks up
+    → runs full cycle (or subset if segments/regions specified)
+    → returns immediately, discovery is async
+```
+
+**Source routing:**
+```
+Higher segments (Tier1, Tier2, Tier3):
+    Source: primary_db
+    Adapter: BasePrimaryDBAdapter (configurable)
+    Default: MockPrimaryDBAdapter for dev / simulator
+
+Lower segments (Edge, Field):
+    Source: secondary_files
+    File naming: {region}_{segment}.json or .csv
+    e.g. mumbai_Edge.json, delhi_Field.csv
 ```
 
 **Region basis delta validation:**
 ```
-For each region:
-    existing_count = current DB count
-    incoming_count = new data count
-    delta_pct = abs(existing - incoming) / existing * 100
+Granularity: per (region, segment) pair.
+One region = one city. One city can have 200K–2M devices.
+Diffing individual devices at this scale is prohibitive.
+Count comparison is O(1) with a MongoDB compound index.
 
-    if delta_pct <= threshold:
-        region VALID
-    else:
-        region INVALID — abort, keep existing data
+For each (region, segment):
+    existing_count = MongoDB count for that city + segment
+    incoming_count = count in new data batch
+    delta_pct = abs(incoming - existing) / existing * 100
+
+    existing_count == 0   → first run, always VALID
+    delta_pct <= threshold → VALID  — proceed with full replace
+    delta_pct >  threshold → INVALID — abort, keep existing data
+
+Each (region, segment) is evaluated independently.
+One city failing does not block other cities.
 ```
 
 Prevents silent data loss when secondary files
 are partially copied or primary DB is unavailable.
+The 10% default threshold allows organic fleet churn
+(new devices added, decommissions) while catching
+bulk data loss scenarios.
 
 **Blue Green Refresh:**
 ```
-Validate all regions
-    → Backup current DB
-    → Truncate
-    → Bulk insert new data
-    → Verify counts
-    → Rollback to backup if insert fails
+Per each VALID (region, segment):
+    1. Backup   existing devices for this city+segment
+                → discovery_backup collection
+    2. Delete   existing devices for this city+segment
+                from devices collection
+    3. Insert   new devices in bulk
+    4. Verify   actual count == incoming_count
+    5. Rollback if verify fails
+                → delete partial insert
+                → restore from backup
+
+Cities are refreshed independently in sequence.
+A failed rollback is logged but does not halt
+processing of remaining cities.
 ```
 
 ---
