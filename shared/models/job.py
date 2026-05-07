@@ -12,6 +12,11 @@ class JobStatus(str, Enum):
     TIMEOUT = "TIMEOUT"
 
 
+class JobType(str, Enum):
+    PERIODIC = "PERIODIC"
+    ADHOC = "ADHOC"
+
+
 class JobOperation(str, Enum):
     OPTIC_POWER = "OPTIC_POWER"
     INTERFACE_STATS = "INTERFACE_STATS"
@@ -28,9 +33,10 @@ class JobPriority(str, Enum):
 class Job(BaseModel):
     job_id: str
     job_name: str
+    job_type: JobType = JobType.PERIODIC
     operation: JobOperation
     segments: list[str]
-    cron: str
+    cron: Optional[str] = None
     timeout_minutes: int = 120
     error_threshold: int = 100
     retry_count: int = 3
@@ -86,3 +92,21 @@ class JobProgress(BaseModel):
     @property
     def is_complete(self) -> bool:
         return self.inserted_records >= self.total_records
+
+
+class JobEventMessage(BaseModel):
+    """Scheduler → Interim contract: triggers device resolution."""
+    execution_id: str
+    job_id: str
+    job_name: str
+    operation: JobOperation
+    segments: list[str]
+    protocol: Optional[str] = None
+    priority: JobPriority
+    total_records: int
+    triggered_at: datetime = Field(
+        default_factory=datetime.utcnow
+    )
+
+    class Config:
+        use_enum_values = True

@@ -27,6 +27,8 @@ setup(
         "pymongo==4.6.0",
         "confluent-kafka==2.3.0",
         "motor==3.3.2",
+        "croniter>=2.0.0",
+        "netmiko>=4.3.0",
     ],
     extras_require={
         "dev": [

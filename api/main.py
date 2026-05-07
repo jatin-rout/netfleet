@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from shared.utils.logger import get_logger
-from api.routers import health, discovery, devices, jobs
+from api.routers import health, discovery, devices, jobs, search
 
 logger = get_logger("api")
 
@@ -42,6 +42,11 @@ app.include_router(
     jobs.router,
     prefix="/api/v1",
     tags=["jobs"],
+)
+app.include_router(
+    search.router,
+    prefix="/api/v1",
+    tags=["search"],
 )
 
 

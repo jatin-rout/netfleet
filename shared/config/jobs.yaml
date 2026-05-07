@@ -1,6 +1,7 @@
 jobs:
   - name: optic_power_collection
     description: Collect optical power stats
+    job_type: PERIODIC
     operation: OPTIC_POWER
     segments: [Tier1, Tier2, Tier3]
     cron: "0 2 * * *"
@@ -11,6 +12,7 @@ jobs:
 
   - name: interface_stats_collection
     description: Collect interface statistics
+    job_type: PERIODIC
     operation: INTERFACE_STATS
     segments: [Tier1, Tier2, Tier3, Edge, Field]
     cron: "0 3 * * *"
@@ -21,6 +23,7 @@ jobs:
 
   - name: device_discovery_sync
     description: Daily device fleet discovery sync
+    job_type: PERIODIC
     operation: DISCOVERY
     segments: [Tier1, Tier2, Tier3, Edge, Field]
     cron: "0 1 * * *"
@@ -30,20 +33,22 @@ jobs:
     retry_count: 1
 
   - name: config_push_tier1
-    description: Push configuration to Tier1 devices
+    description: Push configuration to Tier1 devices on demand
+    job_type: ADHOC
     operation: CONFIG_PUSH
     segments: [Tier1]
-    cron: "0 4 * * *"
+    cron: null
     protocol: SSH
     timeout_minutes: 90
     error_threshold: 50
     retry_count: 3
 
   - name: config_push_edge
-    description: Push configuration to Edge devices
+    description: Push configuration to Edge and Field devices on demand
+    job_type: ADHOC
     operation: CONFIG_PUSH
     segments: [Edge, Field]
-    cron: "0 5 * * *"
+    cron: null
     protocol: TELNET
     timeout_minutes: 120
     error_threshold: 100

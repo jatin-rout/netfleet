@@ -44,7 +44,9 @@ class RedisConfig:
         "raw_results": "queue_raw_results",
         "normalized": "queue_normalized_records",
         "db_insert": "queue_db_insert",
-        "rag_raw": "queue_rag_raw"
+        "rag_raw": "queue_rag_raw",
+        "job_events": "queue_job_events",
+        "job_trigger": "queue_job_trigger",
     }
 
     CACHE_KEYS = {
@@ -74,7 +76,9 @@ class KafkaConfig:
         "normalized": "netfleet.normalized.records",
         "db_insert": "netfleet.db.insert",
         "discovery_events": "netfleet.discovery.events",
-        "rag_raw": "netfleet.rag.raw"
+        "rag_raw": "netfleet.rag.raw",
+        "job_events": "netfleet.job.events",
+        "job_trigger": "netfleet.job.trigger",
     }
 
 

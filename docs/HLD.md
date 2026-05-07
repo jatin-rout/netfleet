@@ -84,10 +84,11 @@ Phase 2      → Natural Language Query
                to MongoDB filter and executes it
                POST /api/v1/query
 
-Phase 3      → RAG on Device Output
-               Raw CLI output embedded and stored
-               in Qdrant vector store
-               Semantic search over device logs
+Phase 3      → RAG + LLM on Device Logs
+               Preprocessor raw CLI output embedded
+               and stored in Qdrant vector store
+               Question → retrieve relevant log chunks
+               → Claude analyses chunks → explanation
                POST /api/v1/search
 ```
 
@@ -338,8 +339,27 @@ processing of remaining cities.
 
 ### Component 2 — Job Scheduler
 
-Monitors all configured jobs and triggers based
-on cron schedules. Owns the job lifecycle.
+Monitors all configured jobs and triggers based on
+schedule or on-demand signals. Owns the job lifecycle
+end-to-end.
+
+**Two trigger modes:**
+```
+Cron Mode — PERIODIC jobs:
+    Configured with cron expression in jobs.yaml
+    Scheduler ticks every JOB_CHECK_INTERVAL seconds
+    Fires when cron expression last fired within that
+    window AND no RUNNING execution exists for the job
+    Stats collection and discovery sync use this mode
+
+On-Demand Mode — ADHOC jobs:
+    Triggered via POST /api/v1/jobs/trigger
+    API creates a PENDING execution and signals the
+    scheduler via queue_job_trigger
+    Scheduler transitions PENDING → RUNNING immediately
+    Runs exactly once — no recurring schedule
+    Config push and password rotation use this mode
+```
 
 **Job lifecycle:**
 ```
@@ -348,24 +368,33 @@ PENDING → RUNNING → COMPLETE
                   → TIMEOUT
 ```
 
+Cron-triggered jobs are inserted directly as RUNNING
+(no queue hop). API-triggered jobs start as PENDING
+and transition to RUNNING when the scheduler picks them
+up from queue_job_trigger.
+
 **Count based completion tracking:**
 ```
 At trigger:
-    store total_records = device count for segment
+    total_records = MongoDB count(devices, segment IN
+                    job.segments, status=ACTIVE)
+    Stored in execution record and Redis progress cache
 
 During execution:
-    MongoDB Insert reports inserted_records
-    via Redis cache
+    DB Insert increments inserted_records in Redis
+    job_progress:{execution_id} after each bulk write
 
 Completion:
-    if inserted_records >= total_records:
-        mark job COMPLETE
+    CompletionTracker polls every 10 seconds
+    if inserted_records >= total_records > 0:
+        mark COMPLETE, delete Redis progress key
 ```
 
 **Timeout safety net:**
 
-If job does not complete within timeout window
-mark FAILED. Prevents zombie jobs running forever.
+CompletionTracker also checks elapsed time.
+If elapsed > timeout_minutes: mark TIMEOUT.
+Prevents zombie RUNNING executions.
 
 ---
 
@@ -486,6 +515,28 @@ Cache timeout:
     No new records within window
     Signal Scheduler FAILED
 ```
+
+---
+
+### Component 2 Queue Interaction
+```
+Inbound queue (from API):
+    queue_job_trigger    → adhoc trigger, one per API call
+
+Outbound queues (to device workers — Scheduler routes directly):
+    queue_higher_segments → Tier1, Tier2, Tier3 device messages
+    queue_lower_segments  → Edge, Field device messages
+
+Message shape per device (DeviceQueueMessage):
+    execution_id, job_id, operation, device (full record),
+    priority (HIGH|STANDARD), queued_at
+```
+
+The Scheduler queries the Discovery DB (devices collection)
+using a cursor — no full fleet load into memory. Per device,
+it calls segment_priority() and routes to the correct queue.
+Downstream consumers (Preprocessor or any other worker) are
+unaware of the Scheduler; they simply consume from the queues.
 
 ---
 
@@ -652,22 +703,24 @@ PluginRegistry.register(CiscoIOSPlugin)
 ### Happy Path — Core Pipeline
 ```
 1.  Scheduler detects job cron matches current time
-2.  Scheduler calls Interim with job details
-3.  Interim queries Discovery DB for segment devices
-4.  Interim publishes device records to transport
-5.  Scheduler marks job RUNNING stores total_records
-6.  Preprocessor workers consume from transport
-7.  Plugin handler connects to device
-8.  Raw output published to queue_raw_results
-9.  Raw output also published to queue_rag_raw
-10. Postprocessor consumes queue_raw_results
-11. TextFSM template normalizes vendor output
-12. Normalized records published to transport
-13. MongoDB Insert consumes normalized records
-14. Bulk insert to MongoDB
-15. Cache updated with inserted count
-16. Scheduler detects inserted equals total
-17. Job marked COMPLETE
+    OR Scheduler reads adhoc trigger from queue_job_trigger
+2.  Scheduler counts total_records from MongoDB devices
+3.  Scheduler publishes JobEventMessage to queue_job_events
+4.  Scheduler marks job RUNNING, seeds Redis progress cache
+5.  Interim reads queue_job_events, queries Discovery DB
+6.  Interim publishes DeviceQueueMessage per device to transport
+7.  Preprocessor workers consume from transport
+8.  Plugin handler connects to device
+9.  Raw output published to queue_raw_results
+10. Raw output also published to queue_rag_raw
+11. Postprocessor consumes queue_raw_results
+12. TextFSM template normalizes vendor output
+13. Normalized records published to transport
+14. MongoDB Insert consumes normalized records
+15. Bulk insert to MongoDB
+16. DB Insert increments inserted_records in Redis
+17. CompletionTracker detects inserted >= total
+18. Job marked COMPLETE
 ```
 
 ### Happy Path — Phase 3 (RAG Indexing, runs in parallel)
@@ -695,13 +748,27 @@ PluginRegistry.register(CiscoIOSPlugin)
 10. Response sent to client
 ```
 
-### Happy Path — Phase 3 (RAG Search, on demand)
+### Happy Path — Phase 3 (RAG Search + LLM Analysis, on demand)
 ```
 1.  Client sends POST /api/v1/search with question
-2.  Sentence transformer embeds question to vector
+2.  Same embedding model as indexer encodes question to vector
+    (model identity guarantees vector space match)
 3.  Qdrant nearest-neighbour search with top_k=10
-4.  Results ranked by cosine similarity score
-5.  Raw chunks + device metadata returned to client
+4.  Top chunks retrieved, each annotated with device metadata
+    (device_id, vendor, region, segment, operation, score)
+5.  Context block built from retrieved chunks
+6.  Claude called with cached system prompt + context + question
+7.  Claude analyses actual CLI log content and answers question
+8.  Response: { analysis (LLM text), evidence (chunks + scores) }
+```
+
+Phase 2 vs Phase 3 — complementary not overlapping:
+```
+Phase 2  "Find me all Cisco devices in Mumbai with CRC > 100"
+         → structured filter → MongoDB → count/list results
+
+Phase 3  "Explain what is causing the CRC errors on Tier1 devices"
+         → semantic search → raw CLI logs → Claude analysis
 ```
 
 ### Failure Paths
