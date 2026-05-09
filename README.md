@@ -17,7 +17,7 @@
 
 Every network team faces the same problem.
 
-Thousands of devices. Multiple vendors. Different
+Millions of devices. Multiple vendors. Different
 protocols. Jobs running at odd hours. Devices going
 unreachable. No visibility into what succeeded and
 what failed.
