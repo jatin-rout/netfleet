@@ -1,6 +1,6 @@
 from shared.models.device import (
     Device,
-    DeviceDiscoveryRecord,
+    DeviceInventoryRecord,
     DeviceDeltaResult,
     DeviceQueueMessage,
     DeviceStatus,
@@ -26,12 +26,14 @@ from shared.models.status import (
     RawOutputMessage,
     NormalizedOutputMessage,
     RawDeviceOutput,
-    NormalizedRecord
+    NormalizedRecord,
+    FailureReason,
+    JobCounters
 )
 
 __all__ = [
     "Device",
-    "DeviceDiscoveryRecord",
+    "DeviceInventoryRecord",
     "DeviceDeltaResult",
     "DeviceQueueMessage",
     "DeviceStatus",
@@ -53,5 +55,7 @@ __all__ = [
     "RawOutputMessage",
     "NormalizedOutputMessage",
     "RawDeviceOutput",
-    "NormalizedRecord"
+    "NormalizedRecord",
+    "FailureReason",
+    "JobCounters"
 ]

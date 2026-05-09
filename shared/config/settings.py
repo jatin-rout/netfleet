@@ -82,7 +82,7 @@ class KafkaConfig:
     }
 
 
-class PreprocessorConfig:
+class CollectorConfig:
     THREAD_POOL_SIZE = int(
         os.getenv("THREAD_POOL_SIZE", 150)
     )
@@ -100,23 +100,23 @@ class PreprocessorConfig:
     )
 
 
-class PostprocessorConfig:
+class NormalizerConfig:
     TEXTFSM_TEMPLATES_PATH = os.getenv(
         "TEXTFSM_TEMPLATES_PATH",
         "/app/templates/textfsm"
     )
     ERROR_THRESHOLD = int(
         os.getenv(
-            "POSTPROCESSOR_ERROR_THRESHOLD",
+            "NORMALIZER_ERROR_THRESHOLD",
             100
         )
     )
     BATCH_SIZE = int(
-        os.getenv("POSTPROCESSOR_BATCH_SIZE", 50)
+        os.getenv("NORMALIZER_BATCH_SIZE", 50)
     )
 
 
-class SchedulerConfig:
+class OrchestratorConfig:
     JOB_CHECK_INTERVAL = int(
         os.getenv("JOB_CHECK_INTERVAL", 30)
     )
@@ -128,7 +128,7 @@ class SchedulerConfig:
     )
 
 
-class DiscoveryConfig:
+class InventoryConfig:
     DELTA_THRESHOLD = float(
         os.getenv("DELTA_THRESHOLD_PERCENTAGE", 10)
     )
@@ -138,10 +138,10 @@ class DiscoveryConfig:
     )
     SECONDARY_FILES_PATH = os.getenv(
         "SECONDARY_FILES_PATH",
-        "/data/discovery/files"
+        "/data/inventory/files"
     )
-    DISCOVERY_MODE = os.getenv(
-        "DISCOVERY_MODE",
+    INVENTORY_MODE = os.getenv(
+        "INVENTORY_MODE",
         "cron"
     )
 
@@ -238,3 +238,4 @@ class NLQueryConfig:
 
 SEGMENTS = load_yaml("segments.yaml")
 JOBS = load_yaml("jobs.yaml")
+OPERATIONS = load_yaml("operations.yaml")

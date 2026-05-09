@@ -2,28 +2,30 @@ from shared.config.settings import (
     MongoConfig,
     RedisConfig,
     KafkaConfig,
-    PreprocessorConfig,
-    PostprocessorConfig,
-    SchedulerConfig,
-    DiscoveryConfig,
+    CollectorConfig,
+    NormalizerConfig,
+    OrchestratorConfig,
+    InventoryConfig,
     SimulatorConfig,
     SegmentConfig,
     TransportConfig,
     SEGMENTS,
-    JOBS
+    JOBS,
+    OPERATIONS
 )
 
 __all__ = [
     "MongoConfig",
     "RedisConfig",
     "KafkaConfig",
-    "PreprocessorConfig",
-    "PostprocessorConfig",
-    "SchedulerConfig",
-    "DiscoveryConfig",
+    "CollectorConfig",
+    "NormalizerConfig",
+    "OrchestratorConfig",
+    "InventoryConfig",
     "SimulatorConfig",
     "SegmentConfig",
     "TransportConfig",
     "SEGMENTS",
-    "JOBS"
+    "JOBS",
+    "OPERATIONS"
 ]

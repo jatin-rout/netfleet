@@ -66,7 +66,7 @@ class Device(BaseModel):
         use_enum_values = True
 
 
-class DeviceDiscoveryRecord(BaseModel):
+class DeviceInventoryRecord(BaseModel):
     region: str
     segment: SegmentType
     devices: list[Device]
@@ -95,6 +95,8 @@ class DeviceQueueMessage(BaseModel):
     operation: str
     device: Device
     priority: SegmentPriority
+    job_protocol: Optional[str] = None
+    params: dict = Field(default_factory=dict)
     queued_at: datetime = Field(
         default_factory=datetime.utcnow
     )

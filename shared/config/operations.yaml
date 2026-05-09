@@ -1,0 +1,317 @@
+operations:
+
+  OPTIC_POWER:
+    type: GET
+    description: Collect optical transceiver power levels
+    commands:
+      cisco_ios:
+        - cmd: "show interfaces transceiver"
+          timeout: 30
+        - cmd: "show controllers dwdm"
+          timeout: 30
+      huawei_vrp:
+        - cmd: "display interface optical-module verbose"
+          timeout: 30
+      juniper_junos:
+        - cmd: "show interfaces diagnostics optics"
+          timeout: 30
+      bdcom:
+        - cmd: "show pon statistics"
+          timeout: 30
+      zte_zxros:
+        - cmd: "show gpon onu detail-info"
+          timeout: 30
+      utstarcom:
+        - cmd: "show dsl line"
+          timeout: 30
+    snmp_oids:
+      cisco_ios:
+        - oid: "1.3.6.1.2.1.2.2.1.8"
+          label: ifOperStatus
+        - oid: "1.3.6.1.4.1.9.10.86.1.1.1.4"
+          label: opticalTxPower
+        - oid: "1.3.6.1.4.1.9.10.86.1.1.1.5"
+          label: opticalRxPower
+      huawei_vrp:
+        - oid: "1.3.6.1.2.1.2.2.1.8"
+          label: ifOperStatus
+        - oid: "1.3.6.1.4.1.2011.5.25.31.1.1.1.1.27"
+          label: hwIfOpticalTxPower
+        - oid: "1.3.6.1.4.1.2011.5.25.31.1.1.1.1.28"
+          label: hwIfOpticalRxPower
+      juniper_junos:
+        - oid: "1.3.6.1.2.1.2.2.1.8"
+          label: ifOperStatus
+        - oid: "1.3.6.1.4.1.2636.3.60.1.1.1.1.4"
+          label: jnxOpticsLaneStatus
+      bdcom:
+        - oid: "1.3.6.1.2.1.2.2.1.8"
+          label: ifOperStatus
+      zte_zxros:
+        - oid: "1.3.6.1.2.1.2.2.1.8"
+          label: ifOperStatus
+      utstarcom:
+        - oid: "1.3.6.1.2.1.2.2.1.8"
+          label: ifOperStatus
+
+  INTERFACE_STATS:
+    type: GET
+    description: Collect interface traffic and error statistics
+    commands:
+      cisco_ios:
+        - cmd: "show interfaces"
+          timeout: 30
+        - cmd: "show ip interface brief"
+          timeout: 15
+      huawei_vrp:
+        - cmd: "display interface"
+          timeout: 30
+        - cmd: "display ip interface brief"
+          timeout: 15
+      juniper_junos:
+        - cmd: "show interfaces extensive"
+          timeout: 30
+      bdcom:
+        - cmd: "show interface"
+          timeout: 30
+      zte_zxros:
+        - cmd: "show interface"
+          timeout: 30
+      utstarcom:
+        - cmd: "show interface"
+          timeout: 30
+        - cmd: "show subscriber"
+          timeout: 30
+    snmp_oids:
+      cisco_ios:
+        - oid: "1.3.6.1.2.1.2.2.1.10"
+          label: ifInOctets
+        - oid: "1.3.6.1.2.1.2.2.1.16"
+          label: ifOutOctets
+        - oid: "1.3.6.1.2.1.2.2.1.14"
+          label: ifInErrors
+        - oid: "1.3.6.1.2.1.2.2.1.20"
+          label: ifOutErrors
+        - oid: "1.3.6.1.2.1.31.1.1.1.6"
+          label: ifHCInOctets
+        - oid: "1.3.6.1.2.1.31.1.1.1.10"
+          label: ifHCOutOctets
+      huawei_vrp:
+        - oid: "1.3.6.1.2.1.31.1.1.1.6"
+          label: ifHCInOctets
+        - oid: "1.3.6.1.2.1.31.1.1.1.10"
+          label: ifHCOutOctets
+        - oid: "1.3.6.1.2.1.2.2.1.14"
+          label: ifInErrors
+        - oid: "1.3.6.1.2.1.2.2.1.20"
+          label: ifOutErrors
+      juniper_junos:
+        - oid: "1.3.6.1.2.1.31.1.1.1.6"
+          label: ifHCInOctets
+        - oid: "1.3.6.1.2.1.31.1.1.1.10"
+          label: ifHCOutOctets
+      bdcom:
+        - oid: "1.3.6.1.2.1.2.2.1.10"
+          label: ifInOctets
+        - oid: "1.3.6.1.2.1.2.2.1.16"
+          label: ifOutOctets
+      zte_zxros:
+        - oid: "1.3.6.1.2.1.2.2.1.10"
+          label: ifInOctets
+        - oid: "1.3.6.1.2.1.2.2.1.16"
+          label: ifOutOctets
+      utstarcom:
+        - oid: "1.3.6.1.2.1.2.2.1.10"
+          label: ifInOctets
+        - oid: "1.3.6.1.2.1.2.2.1.16"
+          label: ifOutOctets
+
+  DISCOVERY:
+    type: GET
+    description: Discover device identity, version, and capability
+    commands:
+      cisco_ios:
+        - cmd: "show version"
+          timeout: 15
+        - cmd: "show inventory"
+          timeout: 15
+      huawei_vrp:
+        - cmd: "display version"
+          timeout: 15
+        - cmd: "display elabel"
+          timeout: 15
+      juniper_junos:
+        - cmd: "show version"
+          timeout: 15
+        - cmd: "show chassis hardware"
+          timeout: 15
+      bdcom:
+        - cmd: "show version"
+          timeout: 15
+      zte_zxros:
+        - cmd: "show version"
+          timeout: 15
+      utstarcom:
+        - cmd: "show version"
+          timeout: 15
+    snmp_oids:
+      cisco_ios:
+        - oid: "1.3.6.1.2.1.1.1.0"
+          label: sysDescr
+        - oid: "1.3.6.1.2.1.1.5.0"
+          label: sysName
+        - oid: "1.3.6.1.4.1.9.9.25.1.1.1.2.7"
+          label: ciscoSerialNumber
+      huawei_vrp:
+        - oid: "1.3.6.1.2.1.1.1.0"
+          label: sysDescr
+        - oid: "1.3.6.1.2.1.1.5.0"
+          label: sysName
+      juniper_junos:
+        - oid: "1.3.6.1.2.1.1.1.0"
+          label: sysDescr
+        - oid: "1.3.6.1.2.1.1.5.0"
+          label: sysName
+      bdcom:
+        - oid: "1.3.6.1.2.1.1.1.0"
+          label: sysDescr
+      zte_zxros:
+        - oid: "1.3.6.1.2.1.1.1.0"
+          label: sysDescr
+      utstarcom:
+        - oid: "1.3.6.1.2.1.1.1.0"
+          label: sysDescr
+
+  CONFIG_PUSH:
+    type: SET
+    description: Push configuration changes to device
+    steps:
+      backup:
+        commands:
+          cisco_ios:
+            - cmd: "show running-config"
+              timeout: 60
+          huawei_vrp:
+            - cmd: "display current-configuration"
+              timeout: 60
+          juniper_junos:
+            - cmd: "show configuration"
+              timeout: 60
+          bdcom:
+            - cmd: "show running-config"
+              timeout: 60
+          zte_zxros:
+            - cmd: "show running-config"
+              timeout: 60
+          utstarcom:
+            - cmd: "show running-config"
+              timeout: 60
+      apply:
+        mode: config
+        verify_command:
+          cisco_ios: "show running-config"
+          huawei_vrp: "display current-configuration"
+          juniper_junos: "show configuration"
+          bdcom: "show running-config"
+          zte_zxros: "show running-config"
+          utstarcom: "show running-config"
+        commit_command:
+          cisco_ios: null
+          huawei_vrp: "commit"
+          juniper_junos: "commit"
+          bdcom: null
+          zte_zxros: null
+          utstarcom: null
+      rollback:
+        mode: config
+        cisco_ios:
+          - cmd: "configure terminal"
+          - cmd: "__rollback_config__"
+          - cmd: "end"
+        huawei_vrp:
+          - cmd: "system-view"
+          - cmd: "__rollback_config__"
+          - cmd: "commit"
+          - cmd: "quit"
+        juniper_junos:
+          - cmd: "rollback 1"
+          - cmd: "commit"
+        bdcom:
+          - cmd: "configure terminal"
+          - cmd: "__rollback_config__"
+          - cmd: "end"
+        zte_zxros:
+          - cmd: "configure terminal"
+          - cmd: "__rollback_config__"
+          - cmd: "end"
+        utstarcom:
+          - cmd: "configure terminal"
+          - cmd: "__rollback_config__"
+          - cmd: "end"
+
+  PASSWORD_ROTATION:
+    type: SET
+    description: Rotate device management credentials
+    steps:
+      backup:
+        commands:
+          cisco_ios:
+            - cmd: "show running-config | include username"
+              timeout: 30
+          huawei_vrp:
+            - cmd: "display current-configuration | include aaa"
+              timeout: 30
+          juniper_junos:
+            - cmd: "show configuration system login"
+              timeout: 30
+          bdcom:
+            - cmd: "show running-config | include username"
+              timeout: 30
+          zte_zxros:
+            - cmd: "show running-config | include username"
+              timeout: 30
+          utstarcom:
+            - cmd: "show running-config | include username"
+              timeout: 30
+      apply:
+        mode: config
+        verify_command:
+          cisco_ios: "show running-config | include username"
+          huawei_vrp: "display current-configuration | include aaa"
+          juniper_junos: "show configuration system login"
+          bdcom: "show running-config | include username"
+          zte_zxros: "show running-config | include username"
+          utstarcom: "show running-config | include username"
+        commit_command:
+          cisco_ios: null
+          huawei_vrp: "commit"
+          juniper_junos: "commit"
+          bdcom: null
+          zte_zxros: null
+          utstarcom: null
+      rollback:
+        mode: config
+        cisco_ios:
+          - cmd: "configure terminal"
+          - cmd: "__rollback_config__"
+          - cmd: "end"
+        huawei_vrp:
+          - cmd: "system-view"
+          - cmd: "__rollback_config__"
+          - cmd: "commit"
+          - cmd: "quit"
+        juniper_junos:
+          - cmd: "rollback 1"
+          - cmd: "commit"
+        bdcom:
+          - cmd: "configure terminal"
+          - cmd: "__rollback_config__"
+          - cmd: "end"
+        zte_zxros:
+          - cmd: "configure terminal"
+          - cmd: "__rollback_config__"
+          - cmd: "end"
+        utstarcom:
+          - cmd: "configure terminal"
+          - cmd: "__rollback_config__"
+          - cmd: "end"

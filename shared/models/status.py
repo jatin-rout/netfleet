@@ -128,3 +128,32 @@ class NormalizedRecord(BaseModel):
 
     class Config:
         use_enum_values = True
+
+
+class FailureReason(str, Enum):
+    AUTH = "auth"
+    CONNECTION = "connection"
+    TIMEOUT = "timeout"
+    ROLLBACK = "rollback"
+    DIRTY_STATE = "dirty_state"
+    UNKNOWN = "unknown"
+
+
+class JobCounters(BaseModel):
+    """Per-execution counter snapshot published to Redis by the Collector."""
+    execution_id: str
+    job_id: str
+    job_name: str
+    operation: str
+    scheduled: int = 0
+    successful: int = 0
+    failed_total: int = 0
+    failed_auth: int = 0
+    failed_connection: int = 0
+    failed_timeout: int = 0
+    failed_rollback: int = 0
+    failed_dirty_state: int = 0
+    failed_unknown: int = 0
+    last_updated: datetime = Field(
+        default_factory=datetime.utcnow
+    )

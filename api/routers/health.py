@@ -39,7 +39,7 @@ async def component_metrics():
         "queue_normalized_records",
         "queue_db_insert",
         "queue_rag_raw",
-        "queue_discovery_trigger",
+        "queue_inventory_trigger",
     ]
 
     depths = {}

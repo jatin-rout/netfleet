@@ -61,10 +61,10 @@ services:
 
   # ── Pipeline Components ─────────────────────────────────────────────────────
 
-  discovery:
+  inventory:
     build:
       context: ../..
-      dockerfile: components/discovery/Dockerfile
+      dockerfile: components/inventory/Dockerfile
     depends_on:
       mongodb:
         condition: service_healthy
@@ -72,15 +72,15 @@ services:
         condition: service_healthy
     environment:
       <<: *common-env
-      DISCOVERY_MODE: cron
+      INVENTORY_MODE: cron
       DELTA_THRESHOLD_PERCENTAGE: 10
-      SECONDARY_FILES_PATH: /data/discovery/files
+      SECONDARY_FILES_PATH: /data/inventory/files
     restart: unless-stopped
 
-  scheduler:
+  orchestrator:
     build:
       context: ../..
-      dockerfile: components/scheduler/Dockerfile
+      dockerfile: components/orchestrator/Dockerfile
     depends_on:
       mongodb:
         condition: service_healthy
@@ -106,10 +106,10 @@ services:
       <<: *common-env
     restart: unless-stopped
 
-  preprocessor:
+  collector:
     build:
       context: ../..
-      dockerfile: components/preprocessor/Dockerfile
+      dockerfile: components/collector/Dockerfile
     depends_on:
       redis:
         condition: service_healthy
@@ -121,18 +121,18 @@ services:
       AUTH_RETRY_COUNT: 2
     restart: unless-stopped
 
-  postprocessor:
+  normalizer:
     build:
       context: ../..
-      dockerfile: components/postprocessor/Dockerfile
+      dockerfile: components/normalizer/Dockerfile
     depends_on:
       redis:
         condition: service_healthy
     environment:
       <<: *common-env
       TEXTFSM_TEMPLATES_PATH: /app/templates/textfsm
-      POSTPROCESSOR_BATCH_SIZE: 50
-      POSTPROCESSOR_ERROR_THRESHOLD: 100
+      NORMALIZER_BATCH_SIZE: 50
+      NORMALIZER_ERROR_THRESHOLD: 100
     restart: unless-stopped
 
   db_insert:

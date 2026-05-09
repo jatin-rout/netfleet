@@ -34,11 +34,11 @@ netfleet/
 │       └── mongo_client.py    Async MongoDB client
 │
 ├── components/
-│   ├── discovery/             Component 1
-│   ├── scheduler/             Component 2
+│   ├── inventory/             Component 1
+│   ├── orchestrator/          Component 2
 │   ├── interim/               Component 3
-│   ├── preprocessor/          Component 4a
-│   ├── postprocessor/         Component 4b
+│   ├── collector/             Component 4a
+│   ├── normalizer/            Component 4b
 │   ├── db_insert/             Component 5
 │   └── rag_indexer/           Component 6 (Phase 3)
 │       ├── main.py            Consumer loop
@@ -50,7 +50,7 @@ netfleet/
 │   ├── routers/
 │   │   ├── jobs.py            Job management endpoints
 │   │   ├── devices.py         Device query endpoints
-│   │   ├── discovery.py       Discovery trigger endpoints
+│   │   ├── inventory.py       Inventory trigger endpoints
 │   │   ├── health.py          Health check endpoints
 │   │   ├── query.py           Phase 2 NL query endpoint
 │   │   └── search.py          Phase 3 RAG search endpoint
@@ -71,7 +71,7 @@ netfleet/
 All inter-component messages are JSON. The schemas
 below are the contracts between pipeline stages.
 
-### DeviceQueueMessage (Interim → Preprocessor)
+### DeviceQueueMessage (Interim → Collector)
 ```json
 {
   "execution_id": "uuid",
@@ -92,8 +92,8 @@ below are the contracts between pipeline stages.
 }
 ```
 
-### RawDeviceOutput (Preprocessor → queue_raw_results
-                    Preprocessor → queue_rag_raw)
+### RawDeviceOutput (Collector → queue_raw_results
+                    Collector → queue_rag_raw)
 ```json
 {
   "execution_id": "uuid",
@@ -110,10 +110,10 @@ below are the contracts between pipeline stages.
 ```
 
 The same message type is published to both queues.
-Postprocessor consumes queue_raw_results.
+Normalizer consumes queue_raw_results.
 RAG Indexer consumes queue_rag_raw.
 
-### NormalizedRecord (Postprocessor → DB Insert)
+### NormalizedRecord (Normalizer → DB Insert)
 ```json
 {
   "execution_id": "uuid",
@@ -155,7 +155,7 @@ last_ip_change  datetime
 
 Indexes:
 - `{ device_id: 1 }` unique
-- `{ region: 1, segment: 1 }` compound (discovery delta validation)
+- `{ region: 1, segment: 1 }` compound (inventory delta validation)
 - `{ vendor: 1, status: 1 }` compound (NL query hot path)
 - `{ region: 1, vendor: 1, status: 1 }` compound (NL query with region filter)
 
@@ -630,10 +630,10 @@ shared/config/settings.py.
 
 ---
 
-## Preprocessor Change (Phase 3 Integration)
+## Collector Change (Phase 3 Integration)
 
 The only change to the core pipeline is in
-components/preprocessor/main.py.
+components/collector/main.py.
 
 After the existing publish to queue_raw_results,
 add one additional publish call:
@@ -650,7 +650,7 @@ transport.publish(
 )
 ```
 
-The message payload is identical. No other preprocessor
+The message payload is identical. No other collector
 logic changes.
 
 ---
@@ -735,12 +735,12 @@ qdrant:
 
 api/main.py registers all routers:
 ```python
-from api.routers import jobs, devices, discovery,
+from api.routers import jobs, devices, inventory,
                         health, query, search
 
 app.include_router(jobs.router,      prefix="/api/v1")
 app.include_router(devices.router,   prefix="/api/v1")
-app.include_router(discovery.router, prefix="/api/v1")
+app.include_router(inventory.router, prefix="/api/v1")
 app.include_router(health.router,    prefix="/api/v1")
 app.include_router(query.router,     prefix="/api/v1")
 app.include_router(search.router,    prefix="/api/v1")

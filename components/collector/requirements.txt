@@ -1,0 +1,7 @@
+netmiko>=3.4.0
+pysnmp>=4.4.12,<7
+requests>=2.31.0
+paramiko>=3.0.0
+pydantic>=2.0.0
+pyyaml>=6.0
+redis>=5.0.0

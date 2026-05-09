@@ -87,11 +87,11 @@ graph TB
     end
 
     subgraph Pipeline
-        D[Discovery]
-        S[Scheduler]
+        D[Inventory]
+        S[Orchestrator]
         I[Interim]
-        P[Preprocessor\nThreadPool]
-        PP[Postprocessor\nTextFSM]
+        P[Collector\nThreadPool]
+        PP[Normalizer\nTextFSM]
         M[MongoDB Insert\nAggregator]
     end
 
@@ -127,7 +127,7 @@ Full architecture details → [HLD Document](docs/HLD.md)
 
 ## Five Component Pipeline
 
-### Component 1 — Device Discovery
+### Component 1 — Inventory
 Maintains live fleet inventory across all segments
 and regions. Supports cron based batch mode for
 standalone deployments and event driven real time
@@ -139,7 +139,7 @@ Key features:
 - Dual source support — primary DB and secondary files
 - Automatic rollback on failure
 
-### Component 2 — Job Scheduler
+### Component 2 — Orchestrator
 Monitors all configured jobs and triggers based on
 cron schedules. Owns the complete job lifecycle from
 PENDING to COMPLETE or FAILED.
@@ -150,12 +150,12 @@ Key features:
 - Priority queue isolation per segment
 - Complete job audit trail
 
-### Component 3 — Interim Orchestrator
+### Component 3 — Interim
 Resolves devices for a given segment and distributes
 to priority queues. Higher segments always processed
 before lower segments regardless of job order.
 
-### Component 4a — Preprocessor Pool
+### Component 4a — Collector Pool
 Connects to network devices concurrently and executes
 operations. Uses ThreadPool not AsyncIO because network
 device latency is unpredictable — one slow device in an
@@ -167,7 +167,7 @@ Key features:
 - Error threshold circuit breaker
 - Smart retry — timeout and auth retried, unreachable skipped
 
-### Component 4b — Postprocessor Pool
+### Component 4b — Normalizer Pool
 Normalizes raw device output using TextFSM templates.
 Same command returns different format from different
 vendors. TextFSM converts all formats to a standard
@@ -274,7 +274,7 @@ NetFleet is designed to fail gracefully at every level.
 | Error threshold | Error counter | Circuit breaker |
 | Instance crash | Thread pool lost | Others continue |
 | Cache timeout | No new records | Job marked FAILED |
-| Discovery delta invalid | Region mismatch | Abort, keep existing |
+| Inventory delta invalid | Region mismatch | Abort, keep existing |
 
 ---
 
@@ -306,7 +306,8 @@ available at `http://localhost:8000/docs`.
 POST   /api/v1/jobs/trigger          Trigger a job
 GET    /api/v1/jobs/{id}/status      Get job status
 GET    /api/v1/jobs                  List all jobs
-POST   /api/v1/discovery/sync        Trigger discovery
+POST   /api/v1/inventory/sync        Trigger inventory sync
+GET    /api/v1/inventory/status      Inventory status
 GET    /api/v1/devices               List all devices
 GET    /api/v1/devices/{id}          Get device details
 GET    /api/v1/health                System health
@@ -324,11 +325,11 @@ netfleet/
 │   ├── utils/              Redis, MongoDB, Logger
 │   └── transport/          Pluggable transport layer
 ├── components/
-│   ├── discovery/          Component 1
-│   ├── scheduler/          Component 2
+│   ├── inventory/          Component 1
+│   ├── orchestrator/       Component 2
 │   ├── interim/            Component 3
-│   ├── preprocessor/       Component 4a
-│   ├── postprocessor/      Component 4b
+│   ├── collector/          Component 4a
+│   ├── normalizer/         Component 4b
 │   └── db_insert/          Component 5
 ├── simulator/              Multi vendor mock devices
 ├── plugins/                Vendor plugin registry
@@ -382,7 +383,7 @@ pytest tests/
 pip install -e ".[dev]"
 
 # Run a specific component locally
-cd components/scheduler
+cd components/orchestrator
 python main.py
 ```
 

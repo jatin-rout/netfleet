@@ -85,7 +85,7 @@ Phase 2      → Natural Language Query
                POST /api/v1/query
 
 Phase 3      → RAG + LLM on Device Logs
-               Preprocessor raw CLI output embedded
+               Collector raw CLI output embedded
                and stored in Qdrant vector store
                Question → retrieve relevant log chunks
                → Claude analyses chunks → explanation
@@ -106,11 +106,11 @@ graph TB
     end
 
     subgraph CorePipeline
-        D[Component 1\nDevice Discovery]
-        S[Component 2\nJob Scheduler]
-        I[Component 3\nInterim Orchestrator]
-        P[Component 4a\nPreprocessor Pool]
-        PP[Component 4b\nPostprocessor Pool]
+        D[Component 1\nInventory]
+        S[Component 2\nOrchestrator]
+        I[Component 3\nInterim]
+        P[Component 4a\nCollector Pool]
+        PP[Component 4b\nNormalizer Pool]
         M[Component 5\nMongoDB Insert]
     end
 
@@ -247,7 +247,7 @@ graph TB
 
 ## Component Responsibilities
 
-### Component 1 — Device Discovery
+### Component 1 — Inventory
 
 Maintains live fleet inventory across all segments
 and regions.
@@ -271,11 +271,11 @@ Event Driven Mode — Distributed:
 
 **Manual trigger:**
 ```
-API: POST /api/v1/discovery/sync
-    → pushes to queue_discovery_trigger (Redis)
-    → discovery component trigger listener picks up
+API: POST /api/v1/inventory/sync
+    → pushes to queue_inventory_trigger (Redis)
+    → inventory component trigger listener picks up
     → runs full cycle (or subset if segments/regions specified)
-    → returns immediately, discovery is async
+    → returns immediately, inventory sync is async
 ```
 
 **Source routing:**
@@ -321,7 +321,7 @@ bulk data loss scenarios.
 ```
 Per each VALID (region, segment):
     1. Backup   existing devices for this city+segment
-                → discovery_backup collection
+                → inventory_backup collection
     2. Delete   existing devices for this city+segment
                 from devices collection
     3. Insert   new devices in bulk
@@ -337,7 +337,7 @@ processing of remaining cities.
 
 ---
 
-### Component 2 — Job Scheduler
+### Component 2 — Orchestrator
 
 Monitors all configured jobs and triggers based on
 schedule or on-demand signals. Owns the job lifecycle
@@ -347,16 +347,16 @@ end-to-end.
 ```
 Cron Mode — PERIODIC jobs:
     Configured with cron expression in jobs.yaml
-    Scheduler ticks every JOB_CHECK_INTERVAL seconds
+    Orchestrator ticks every JOB_CHECK_INTERVAL seconds
     Fires when cron expression last fired within that
     window AND no RUNNING execution exists for the job
-    Stats collection and discovery sync use this mode
+    Stats collection and inventory sync use this mode
 
 On-Demand Mode — ADHOC jobs:
     Triggered via POST /api/v1/jobs/trigger
     API creates a PENDING execution and signals the
-    scheduler via queue_job_trigger
-    Scheduler transitions PENDING → RUNNING immediately
+    orchestrator via queue_job_trigger
+    Orchestrator transitions PENDING → RUNNING immediately
     Runs exactly once — no recurring schedule
     Config push and password rotation use this mode
 ```
@@ -370,7 +370,7 @@ PENDING → RUNNING → COMPLETE
 
 Cron-triggered jobs are inserted directly as RUNNING
 (no queue hop). API-triggered jobs start as PENDING
-and transition to RUNNING when the scheduler picks them
+and transition to RUNNING when the orchestrator picks them
 up from queue_job_trigger.
 
 **Count based completion tracking:**
@@ -398,9 +398,9 @@ Prevents zombie RUNNING executions.
 
 ---
 
-### Component 3 — Interim Orchestrator
+### Component 3 — Interim
 
-Resolves devices for given segment from Discovery DB
+Resolves devices for given segment from Inventory DB
 and distributes to priority queues via transport.
 
 **Priority isolation:**
@@ -414,7 +414,7 @@ lower segment jobs.
 
 ---
 
-### Component 4a — Preprocessor Pool
+### Component 4a — Collector Pool
 
 Connects to devices and executes operations.
 Performance heart of the system.
@@ -448,7 +448,7 @@ result = handler.execute(operation)
 ```
 connection_errors >= ERROR_THRESHOLD:
     component marks itself FAILED
-    signals Scheduler immediately
+    signals Orchestrator immediately
 ```
 
 **Retry logic:**
@@ -460,7 +460,7 @@ Unreachable  → no retry
 
 ---
 
-### Component 4b — Postprocessor Pool
+### Component 4b — Normalizer Pool
 
 Normalizes raw device output using TextFSM templates.
 
@@ -492,7 +492,7 @@ Community can contribute templates for any vendor.
 ### Component 5 — MongoDB Insert
 
 Independent microservice for bulk database writes.
-Separated from Postprocessor for independent
+Separated from Normalizer for independent
 scaling and clean failure isolation.
 
 **Aggregator pattern with Redis cache:**
@@ -509,11 +509,11 @@ Cache per job:
 Each batch:
     inserted_records += batch_size
     if inserted >= total:
-        signal Scheduler COMPLETE
+        signal Orchestrator COMPLETE
 
 Cache timeout:
     No new records within window
-    Signal Scheduler FAILED
+    Signal Orchestrator FAILED
 ```
 
 ---
@@ -523,7 +523,7 @@ Cache timeout:
 Inbound queue (from API):
     queue_job_trigger    → adhoc trigger, one per API call
 
-Outbound queues (to device workers — Scheduler routes directly):
+Outbound queues (to device workers — Orchestrator routes directly):
     queue_higher_segments → Tier1, Tier2, Tier3 device messages
     queue_lower_segments  → Edge, Field device messages
 
@@ -532,11 +532,11 @@ Message shape per device (DeviceQueueMessage):
     priority (HIGH|STANDARD), queued_at
 ```
 
-The Scheduler queries the Discovery DB (devices collection)
+The Orchestrator queries the Inventory DB (devices collection)
 using a cursor — no full fleet load into memory. Per device,
 it calls segment_priority() and routes to the correct queue.
-Downstream consumers (Preprocessor or any other worker) are
-unaware of the Scheduler; they simply consume from the queues.
+Downstream consumers (Collector or any other worker) are
+unaware of the Orchestrator; they simply consume from the queues.
 
 ---
 
@@ -546,11 +546,11 @@ Consumes raw device CLI output from a dedicated
 fanout queue and builds a searchable vector corpus
 in Qdrant. Runs independently of the core pipeline.
 
-**Fanout from Preprocessor:**
+**Fanout from Collector:**
 ```
-Preprocessor publishes raw output to two queues:
+Collector publishes raw output to two queues:
 
-    queue_raw_results   → Postprocessor (existing)
+    queue_raw_results   → Normalizer (existing)
     queue_rag_raw       → RAG Indexer (new)
 
 Both queues carry the same RawDeviceOutput message.
@@ -702,18 +702,18 @@ PluginRegistry.register(CiscoIOSPlugin)
 
 ### Happy Path — Core Pipeline
 ```
-1.  Scheduler detects job cron matches current time
-    OR Scheduler reads adhoc trigger from queue_job_trigger
-2.  Scheduler counts total_records from MongoDB devices
-3.  Scheduler publishes JobEventMessage to queue_job_events
-4.  Scheduler marks job RUNNING, seeds Redis progress cache
-5.  Interim reads queue_job_events, queries Discovery DB
+1.  Orchestrator detects job cron matches current time
+    OR Orchestrator reads adhoc trigger from queue_job_trigger
+2.  Orchestrator counts total_records from MongoDB devices
+3.  Orchestrator publishes JobEventMessage to queue_job_events
+4.  Orchestrator marks job RUNNING, seeds Redis progress cache
+5.  Interim reads queue_job_events, queries Inventory DB
 6.  Interim publishes DeviceQueueMessage per device to transport
-7.  Preprocessor workers consume from transport
+7.  Collector workers consume from transport
 8.  Plugin handler connects to device
 9.  Raw output published to queue_raw_results
 10. Raw output also published to queue_rag_raw
-11. Postprocessor consumes queue_raw_results
+11. Normalizer consumes queue_raw_results
 12. TextFSM template normalizes vendor output
 13. Normalized records published to transport
 14. MongoDB Insert consumes normalized records
@@ -781,7 +781,7 @@ Device timeout or auth failure:
 
 Component error threshold reached:
     Component FAILED
-    Signal Scheduler
+    Signal Orchestrator
     Job FAILED
     Alert raised
 
@@ -791,7 +791,7 @@ Instance crash:
 
 Cache timeout:
     MongoDB Insert detects silence
-    Signals Scheduler
+    Signals Orchestrator
     Job FAILED
 ```
 
@@ -823,7 +823,7 @@ while others succeed.
 Separated from Postprocessor for independent
 scaling and single responsibility per component.
 
-### 6. Blue Green Discovery Refresh
+### 6. Blue Green Inventory Refresh
 Atomic all-or-nothing refresh. No partial state.
 Instant rollback on failure.
 
@@ -833,7 +833,7 @@ New vendor requires only new templates and plugin.
 No code changes needed.
 
 ### 8. Fanout Queue for RAG (Phase 3)
-Preprocessor publishes raw output to a dedicated
+Collector publishes raw output to a dedicated
 queue_rag_raw alongside the existing queue_raw_results.
 RAG Indexer consumes only from queue_rag_raw.
 This keeps the RAG pipeline entirely decoupled —
@@ -866,7 +866,7 @@ The 80MB model loads once at startup.
 | Error threshold | Error counter | Component FAILED |
 | Instance crash | Thread pool lost | Others continue |
 | Cache timeout | No new records | Job FAILED |
-| Discovery delta invalid | Region mismatch | Abort keep existing |
+| Inventory delta invalid | Region mismatch | Abort keep existing |
 | Transport failure | Connection error | Circuit breaker |
 | RAG Indexer down | queue_rag_raw grows | Core pipeline unaffected, indexer catches up on restart |
 | Claude API error | HTTP 5xx or timeout | Return 503 with human readable message, no silent fail |
@@ -902,7 +902,7 @@ Pre-built Grafana dashboard included in
 | Cache | Redis | Redis | Redis Cluster |
 | Database | MongoDB | MongoDB | MongoDB Cluster |
 | Deployment | Docker Compose | Kubernetes | Kubernetes |
-| Discovery | Cron | Event Driven | Event Driven |
+| Inventory | Cron | Event Driven | Event Driven |
 | Scaling | Manual | HPA Auto | HPA Auto |
 
 **Common across all profiles:**
